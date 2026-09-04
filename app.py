@@ -40,7 +40,7 @@ st.markdown("""
 # ---------- Train the model fresh, once, and cache it ----------
 @st.cache_resource
 def load_and_train():
-    df = pd.read_xlsx("hospital_waiting_time_dataset.xlsx")
+    df = pd.read_excel("hospital_waiting_time_dataset.xlsx")
     df["arrival_hour"] = df["arrival_time"].str.split(":").str[0].astype(int)
 
     encoders = {}
