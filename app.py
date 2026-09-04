@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
-import joblib
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
 
 # ---------- Page configuration ----------
 st.set_page_config(
@@ -13,60 +16,62 @@ st.set_page_config(
 # ---------- Custom CSS styling ----------
 st.markdown("""
     <style>
-    .main {
-        background-color: #f4f9fb;
-    }
+    .main { background-color: #f4f9fb; }
     .title-text {
-        font-size: 38px;
-        font-weight: 800;
-        color: #0b5394;
-        text-align: center;
-        margin-bottom: 0px;
+        font-size: 38px; font-weight: 800; color: #0b5394;
+        text-align: center; margin-bottom: 0px;
     }
     .subtitle-text {
-        font-size: 16px;
-        color: #4a4a4a;
-        text-align: center;
-        margin-bottom: 25px;
+        font-size: 16px; color: #4a4a4a; text-align: center; margin-bottom: 25px;
     }
     .stButton>button {
-        background-color: #0b5394;
-        color: white;
-        font-weight: 600;
-        border-radius: 10px;
-        padding: 10px 24px;
-        border: none;
-        width: 100%;
+        background-color: #0b5394; color: white; font-weight: 600;
+        border-radius: 10px; padding: 10px 24px; border: none; width: 100%;
     }
-    .stButton>button:hover {
-        background-color: #073763;
-        color: white;
-    }
+    .stButton>button:hover { background-color: #073763; color: white; }
     .result-box {
-        background-color: #d9ead3;
-        border-left: 6px solid #38761d;
-        padding: 20px;
-        border-radius: 10px;
-        font-size: 22px;
-        font-weight: 700;
-        color: #274e13;
-        text-align: center;
-        margin-top: 20px;
+        background-color: #d9ead3; border-left: 6px solid #38761d;
+        padding: 20px; border-radius: 10px; font-size: 22px; font-weight: 700;
+        color: #274e13; text-align: center; margin-top: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# ---------- Load trained model and encoders ----------
-model = joblib.load("waiting_time_model.pkl")
-encoders = joblib.load("encoders.pkl")
+# ---------- Train the model fresh, once, and cache it ----------
+@st.cache_resource
+def load_and_train():
+    df = pd.read_csv("hospital_waiting_time_dataset.csv")
+    df["arrival_hour"] = df["arrival_time"].str.split(":").str[0].astype(int)
+
+    encoders = {}
+    for col in ["department", "day_of_week", "emergency_status"]:
+        le = LabelEncoder()
+        df[col + "_enc"] = le.fit_transform(df[col])
+        encoders[col] = le
+
+    feature_cols = [
+        "department_enc", "arrival_hour", "number_of_patients",
+        "doctor_availability", "day_of_week_enc", "emergency_status_enc",
+        "previous_waiting_time",
+    ]
+    X = df[feature_cols]
+    y = df["waiting_time_minutes"]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    model = RandomForestRegressor(n_estimators=200, max_depth=10, random_state=42)
+    model.fit(X_train, y_train)
+
+    return model, encoders
+
+model, encoders = load_and_train()
 
 # ---------- Sidebar ----------
 with st.sidebar:
     st.header("ℹ️ About this App")
     st.write(
-        "This tool uses a trained Machine Learning model "
-        "(Random Forest Regressor) to estimate how long a patient "
-        "is likely to wait before receiving service at the hospital."
+        "This tool uses a Machine Learning model (Random Forest Regressor) "
+        "to estimate how long a patient is likely to wait before receiving service."
     )
     st.write("Fill in the patient details on the right and click **Predict**.")
     st.markdown("---")
